@@ -1,2 +1,26 @@
-# cpv-tools
-CPV is an optimized video format/container for the M5Stack Cardputer display (240x135) and the ESP32 S3 without RAM extensions capable of handling 60 fps at 0.5x scale (120x68) with only slight audio glitches. Contains MotionJPEG video, along with PCM16/PCM8s/PCM8u/ADPCM audio.
+# CPV - (M5Stack) Cardputer Video
+## Why was this made?
+The old video player that was made for the M5Stack Cardputer [(this one)](https://github.com/williamd1k0/m5-vids) didn't allow for much freedom, since it was hardcoded to display video only in the native resolution and only 8-bit unsigned PCM in two separate files, which makes downloads over-the-air more difficult since you need more than one file.
+
+The player here uses a custom .CPV container/format that contains the same codec as the last one (MotionJPEG), but with much more flexibility.
+Want to make the audio higher quality? Maybe lower qualiy? Maybe want to play 1920x1088 files for some reason? You can do all that with CPV (if there's enough RAM/bandwidth of course).
+There's also a transcoding proxy provided that allows use of either direct files, or yt-dlp to download videos from supported sites and play them on your Cardputer!
+
+## Features
+- Downloading videos OTA
+- Makes use of [bitbank2's JPEGDEC](https://github.com/bitbank2/JPEGDEC)
+- Transcode proxy support
+- Resolutions down from 60x34 up to 1920x1088 supported
+- 60 fps possible at 0.5x scale (120x68) (thanks to [JPEGDEC](https://github.com/bitbank2/JPEGDEC)
+- Optimized format made purely for the Cardputer that can be converted back to AVI
+- Audio is synced with the video
+- Supports PCM 16-bit, 8-bit signed, 8-bit unsigned and ADPCM for audio.
+- Direct streaming supported as fallback when OOM (uses the display instead of RAM for decoding, only 1x scale <30 FPS)
+
+## Limitations
+- Lower quality compared to modern video formats (encoding isn't movement based like modern codecs, instead it's encoding each frame separately, which takes up a lot more bandwidth than something like H264)
+- No modern audio codec support
+- No true streaming (no memory available)
+
+## Credits
+[bitbank2's JPEGDEC](https://github.com/bitbank2/JPEGDEC) - Very heavily optimized JPEG decoder
