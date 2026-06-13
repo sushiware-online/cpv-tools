@@ -197,11 +197,10 @@ def transcode_route():
         return "Missing 'url' query parameter.", 400
     
     scale = float(request.args.get("scale", 1.0))
-    fps = int(request.args.get("fps", 30))
-    # Default audio_rate updated here to 22050
-    audio_rate = int(request.args.get("audio_rate", 22050))
-    audio_codec = request.args.get("audio_codec", "pcm8_s")
-    quality = int(request.args.get("quality", 12))
+    fps = int(request.args.get("fps", 15))
+    audio_rate = int(request.args.get("audio_rate", 11025))
+    audio_codec = request.args.get("audio_codec", "adpcm")
+    quality = int(request.args.get("quality", 15))
     
     temp_workspace = tempfile.mkdtemp()
     temp_input = os.path.join(temp_workspace, "raw_source.mp4")
