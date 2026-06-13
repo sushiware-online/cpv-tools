@@ -1,4 +1,3 @@
-markdown
 # CPV2 Video Transcoder GUI
 
 A modern, cross-platform graphical application designed to transcode standard video files into the hardware-optimized **CPV2** video format used by the **M5Stack Cardputer CPV Player**. 
