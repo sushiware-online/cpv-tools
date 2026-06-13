@@ -20,7 +20,7 @@ There's also a transcoding proxy provided that allows use of either direct files
 ## Limitations
 - Lower quality compared to modern video formats (encoding isn't movement based like modern codecs, instead it's encoding each frame separately, which takes up a lot more bandwidth than something like H264)
 - No modern audio codec support
-- No true streaming (no memory available)
+- No true web streaming (no memory available)
 
 ## Compiling CPVPlayer (to .bin for M5Launcher)
 You can compile CPVPlayer using Arduino IDE, install the M5Cardputer-specific libraries and JPEGDEC first.
