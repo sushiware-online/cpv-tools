@@ -22,5 +22,10 @@ There's also a transcoding proxy provided that allows use of either direct files
 - No modern audio codec support
 - No true streaming (no memory available)
 
+## Compiling CPVPlayer (to .bin for M5Launcher)
+You can compile CPVPlayer using Arduino IDE, install the M5Cardputer-specific libraries and JPEGDEC first.
+
+After opening the .ino file and selecting the M5Cardputer as target (Tools > Board (M5 Cardputer), go to Sketch > Export Compiled Binary and get the compiled binary from CPVPlayer/build/m5stack.esp32.m5stack_cardputer/CPVPlayer.ino.bin.
+
 ## Credits
 [bitbank2's JPEGDEC](https://github.com/bitbank2/JPEGDEC) - Very heavily optimized JPEG decoder
