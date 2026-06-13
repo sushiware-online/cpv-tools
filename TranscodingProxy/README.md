@@ -53,7 +53,7 @@ If query parameters are omitted, the transcoder defaults to an aggressive, low-o
 * **Scale**: `1.0` (Native Canvas sizing, targeted to base 240x136 layout)
 * **Video Framerate**: `30 FPS`
 * **Audio Format**: `pcm8_s` (8-bit Signed Raw PCM)
-* **Audio Rate**: `11025 Hz`
+* **Audio Rate**: `22050 Hz`
 * **JPEG Quality Value**: `12`
 
 #### Query Parameters
@@ -63,7 +63,7 @@ If query parameters are omitted, the transcoder defaults to an aggressive, low-o
 | `url` | `string` | *Required* | URL of the video (YouTube, Twitch, direct file, etc.) |
 | `scale` | `float` | `1.0` | Output scaling factor |
 | `fps` | `int` | `30` | Framerate of targeted playback |
-| `audio_rate` | `int` | `11025` | Output target sample rate in Hz |
+| `audio_rate` | `int` | `22050` | Output target sample rate in Hz |
 | `audio_codec` | `string` | `pcm8_s` | Audio type payload selection: `pcm8_u`, `pcm8_s`, `pcm16`, `adpcm` |
 | `quality` | `int` | `12` | FFmpeg JPEG compression scale factor (`1`-`31`). Higher means lower quality. |
 
@@ -98,7 +98,7 @@ The output `.cpv` stream is packed using standard little-endian formats (`<`). I
 | `0x06` | `uint16` | `Height` | Final height of the scaled video frames |
 | `0x08` | `float` | `Scale` | Target rendering layout scale factor |
 | `0x0C` | `uint32` | `FPS` | Playback frame rate target (e.g., `30`) |
-| `0x10` | `uint16` | `AudioRate` | Audio sample rate frequency (e.g., `11025`) |
+| `0x10` | `uint16` | `AudioRate` | Audio sample rate frequency (e.g., `22050`) |
 | `0x12` | `uint8` | `AudioCodec` | `1`: PCM8_U, `2`: PCM8_S, `3`: PCM16, `4`: ADPCM |
 | `0x13` | `uint16` | `XOffset` | Canvas rendering offset X (for centering pads) |
 | `0x15` | `uint16` | `YOffset` | Canvas rendering offset Y (for centering pads) |
