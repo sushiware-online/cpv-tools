@@ -44,6 +44,11 @@ struct WifiCred {
     String pass;
 };
 
+struct LinkEntry {
+    String title;
+    String url;
+};
+
 // --- STATIC MEMORY ALLOCATION ---
 #define MAX_JPEG_SIZE 65536
 uint8_t video_buffer[MAX_JPEG_SIZE];
@@ -95,7 +100,7 @@ String get_text_input(const String &title, const String &initial_val);
 void show_popup_msg(const String &msg, uint16_t color);
 void draw_dialog(const String &title, const std::vector<String> &options, int opt_sel);
 void run_video_player(String path);
-void open_txt_link_list(String file_path);
+void open_csv_link_list(String file_path);
 void handle_direct_link_operations(String url);
 void run_download_direct_url(String url);
 void run_stream_direct_url(String url);
@@ -190,7 +195,7 @@ void scan_directory(String path) {
             current_items.push_back(entry);
         } else {
             // Exclude config.txt from appearing in the file selection browser lists
-            if ((name.endsWith(".cpv") || name.endsWith(".CPV") || name.endsWith(".txt") || name.endsWith(".TXT")) && !name.equalsIgnoreCase("config.txt")) {
+            if ((name.endsWith(".cpv") || name.endsWith(".CPV") || name.endsWith(".csv") || name.endsWith(".CSV")) && !name.equalsIgnoreCase("config.txt")) {
                 FileEntry entry;
                 entry.name = name;
                 entry.is_dir = false;
@@ -502,10 +507,10 @@ bool connect_wifi() {
         target_pass = get_text_input("Enter Password:", "");
         needs_save = true;
     } else {
-        ScannedNet selected_net = scan_list[selected_net_idx];
-        target_ssid = selected_net.ssid;
-        if (selected_net.is_saved) {
-            target_pass = selected_net.saved_pass;
+        ScannedNet scanned_net = scan_list[selected_net_idx];
+        target_ssid = scanned_net.ssid;
+        if (scanned_net.is_saved) {
+            target_pass = scanned_net.saved_pass;
         } else {
             target_pass = get_text_input("Enter Password:", "");
             needs_save = true;
@@ -877,7 +882,7 @@ void handle_url_operations() {
                 } else if (opt_sel == 1) {
                     run_stream_url();
                 } else if (opt_sel == 2) {
-                    open_txt_link_list("/videos/urls.txt");
+                    open_csv_link_list("/videos/urls.csv");
                 }
                 break;
             } else if (esc) {
@@ -1169,20 +1174,20 @@ void handle_dir_operations(FileEntry &entry) {
                 delay(200);
                 if (opt_sel == 0) {
                     String target_dir = (entry.name == "..") ? current_dir : entry.full_path;
-                    String filename = get_text_input("New Links List Name:", "urls.txt");
+                    String filename = get_text_input("New Links List Name:", "urls.csv");
                     if (filename != "") {
-                        if (!filename.endsWith(".txt") && !filename.endsWith(".TXT")) {
-                            filename += ".txt";
+                        if (!filename.endsWith(".csv") && !filename.endsWith(".CSV")) {
+                            filename += ".csv";
                         }
                         
                         String new_file_path = (target_dir == "/") ? ("/" + filename) : (target_dir + "/" + filename);
                         
                         File f = SD.open(new_file_path.c_str(), FILE_WRITE);
                         if (f) {
-                            f.println("# URLs List");
+                            f.println("# Title,URL");
                             f.close();
                             show_popup_msg("List Created!", TFT_GREEN);
-                            open_txt_link_list(new_file_path);
+                            open_csv_link_list(new_file_path);
                         } else {
                             show_popup_msg("Creation Failed!", TFT_RED);
                         }
@@ -1298,9 +1303,9 @@ String run_file_selector() {
                         current_dir = selected_item.full_path;
                         needs_scan = true;
                     } else {
-                        // Open TXT Explorer interface if a text file is selected
-                        if (selected_item.name.endsWith(".txt") || selected_item.name.endsWith(".TXT")) {
-                            open_txt_link_list(selected_item.full_path);
+                        // Open CSV Explorer interface if a csv file is selected
+                        if (selected_item.name.endsWith(".csv") || selected_item.name.endsWith(".CSV")) {
+                            open_csv_link_list(selected_item.full_path);
                             needs_scan = true;
                         } else {
                             return selected_item.full_path;
@@ -1337,19 +1342,19 @@ String run_file_selector() {
     }
 }
 
-// --- TEXT FILE URL EXPLORER PIPELINE ---
+// --- CSV FILE URL EXPLORER PIPELINE ---
 
-void open_txt_link_list(String file_path) {
+void open_csv_link_list(String file_path) {
     if (!SD.exists(file_path.c_str())) {
         File f = SD.open(file_path.c_str(), FILE_WRITE);
         if (f) {
-            f.println("# URLs List");
+            f.println("# Title,URL");
             f.close();
         }
     }
     
     bool needs_reload = true;
-    std::vector<String> links;
+    std::vector<LinkEntry> links;
     int selected = 0;
     bool redraw = true;
     uint32_t last_move_ms = 0;
@@ -1362,8 +1367,41 @@ void open_txt_link_list(String file_path) {
                 while (f.available()) {
                     String line = f.readStringUntil('\n');
                     line.trim();
-                    if (line.startsWith("http://") || line.startsWith("https://")) {
-                        links.push_back(line);
+                    if (line.startsWith("#") || line.length() == 0) continue;
+                    
+                    int url_idx = line.indexOf("http://");
+                    if (url_idx == -1) {
+                        url_idx = line.indexOf("https://");
+                    }
+                    
+                    if (url_idx != -1) {
+                        LinkEntry entry;
+                        entry.url = line.substring(url_idx);
+                        entry.url.trim();
+                        
+                        if (url_idx > 0) {
+                            entry.title = line.substring(0, url_idx);
+                            entry.title.trim();
+                            if (entry.title.endsWith(",")) {
+                                entry.title = entry.title.substring(0, entry.title.length() - 1);
+                                entry.title.trim();
+                            }
+                        }
+                        
+                        // Strip quotes around title if applicable (handles CSV commas inside quotes)
+                        if (entry.title.startsWith("\"") && entry.title.endsWith("\"") && entry.title.length() >= 2) {
+                            entry.title = entry.title.substring(1, entry.title.length() - 1);
+                        }
+                        
+                        if (entry.title.length() == 0) {
+                            int last_slash = entry.url.lastIndexOf('/');
+                            if (last_slash != -1 && last_slash < (int)entry.url.length() - 1) {
+                                entry.title = entry.url.substring(last_slash + 1);
+                            } else {
+                                entry.title = entry.url;
+                            }
+                        }
+                        links.push_back(entry);
                     }
                 }
                 f.close();
@@ -1400,7 +1438,7 @@ void open_txt_link_list(String file_path) {
                     }
                 }
                 
-                String display_name = (i == 0) ? "[Append New Link]" : links[i - 1];
+                String display_name = (i == 0) ? "[Append New Link]" : links[i - 1].title;
                 if (display_name.length() > 28) display_name = display_name.substring(0, 25) + "...";
                 M5Cardputer.Display.drawString(display_name, 15, y_pos);
             }
@@ -1438,20 +1476,27 @@ void open_txt_link_list(String file_path) {
             else if (enter_pressed) {
                 delay(200);
                 if (selected == 0) {
-                    String new_url = get_text_input("Enter URL to Append:", "http://");
-                    if (new_url != "" && new_url != "http://" && new_url != "https://") {
-                        File f = SD.open(file_path.c_str(), FILE_APPEND);
-                        if (f) {
-                            f.println(new_url);
-                            f.close();
-                            show_popup_msg("Link Appended!", TFT_GREEN);
-                        } else {
-                            show_popup_msg("Append Failed!", TFT_RED);
+                    String new_title = get_text_input("Enter Link Title:", "");
+                    if (new_title != "") {
+                        String new_url = get_text_input("Enter URL to Append:", "http://");
+                        if (new_url != "" && new_url != "http://" && new_url != "https://") {
+                            File f = SD.open(file_path.c_str(), FILE_APPEND);
+                            if (f) {
+                                // Escape commas if the title contains commas
+                                if (new_title.indexOf(',') != -1) {
+                                    new_title = "\"" + new_title + "\"";
+                                }
+                                f.println(new_title + "," + new_url);
+                                f.close();
+                                show_popup_msg("Link Appended!", TFT_GREEN);
+                            } else {
+                                show_popup_msg("Append Failed!", TFT_RED);
+                            }
                         }
                     }
                     needs_reload = true;
                 } else {
-                    handle_direct_link_operations(links[selected - 1]);
+                    handle_direct_link_operations(links[selected - 1].url);
                     redraw = true; 
                 }
             }
