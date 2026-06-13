@@ -1,6 +1,4 @@
-Here is the updated `README.md` reflecting the **Cardputer Video** format name, complete with a clean layout and technical breakdown.
 
----
 
 # Cardputer Video (CPV2) Transcoder Server
 
