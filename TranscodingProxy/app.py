@@ -83,7 +83,8 @@ def get_video_dimensions(input_path):
                 return int(w), int(h)
     return 1920, 1080
 
-def transcode_to_cpv(input_video, output_cpv, scale=1.0, fps=30, audio_rate=11025, audio_codec="pcm8_s", quality=12, base_width=240, base_height=136, no_rotate=False):
+# Default audio_rate updated here to 22050
+def transcode_to_cpv(input_video, output_cpv, scale=1.0, fps=30, audio_rate=22050, audio_codec="pcm8_s", quality=12, base_width=240, base_height=136, no_rotate=False):
     # Retrieve base dimensions
     orig_w, orig_h = get_video_dimensions(input_video)
     
@@ -195,14 +196,13 @@ def transcode_route():
     if not video_url:
         return "Missing 'url' query parameter.", 400
     
-    # Updated optional parameters with your requested defaults
     scale = float(request.args.get("scale", 1.0))
     fps = int(request.args.get("fps", 30))
-    audio_rate = int(request.args.get("audio_rate", 11025))
+    # Default audio_rate updated here to 22050
+    audio_rate = int(request.args.get("audio_rate", 22050))
     audio_codec = request.args.get("audio_codec", "pcm8_s")
     quality = int(request.args.get("quality", 12))
     
-    # Unique temporary workspace directory
     temp_workspace = tempfile.mkdtemp()
     temp_input = os.path.join(temp_workspace, "raw_source.mp4")
     temp_output = os.path.join(temp_workspace, "transcoded.cpv")
@@ -210,16 +210,14 @@ def transcode_route():
     try:
         print(f"[*] Downloading source via yt-dlp: {video_url}")
         
-        # yt-dlp command configuration 
-        # Merges best video and audio streams up to general quality into an mp4 container
+        # yt-dlp config targeted explicitly at 360p streams
         ytdl_cmd = [
             "yt-dlp",
-            "-f", "b[ext=mp4]/b",  # Grab the best single compatible format (typically mp4)
+            "-f", "worstvideo[height>=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360][ext=mp4]",
             "-o", temp_input,
             video_url
         ]
         
-        # Execute yt-dlp download
         result = subprocess.run(ytdl_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         
         if result.returncode != 0:
@@ -237,7 +235,6 @@ def transcode_route():
         )
         print("[+] Done. Sending stream to client...")
         
-        # Cleanup files cleanly after connection terminates
         @after_this_request
         def remove_temporary_files(resp):
             try:
