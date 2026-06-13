@@ -17,6 +17,22 @@ There's also a transcoding proxy provided that allows use of either direct files
 - Supports PCM 16-bit, 8-bit signed, 8-bit unsigned and ADPCM for audio.
 - Direct streaming supported as fallback when OOM (uses the display instead of RAM for decoding, only 1x scale <30 FPS)
 
+## Supported Resolutions & Performance
+Due to the constraints of JPEG compression, the **native baseline resolution is 240x136**. The table below highlights expected performance across various scaling factors. 
+
+*Note: **Normal** playback may experience slight audio glitches; **Flawless** playback has no audio glitches (or they are incredibly rare).*
+
+*Note 2: Everything was tested with 16-bit PCM at 22050Hz sampling rate. 0.25-2x was tested with encoder quality at about 10, 4x encoder quality 16, and 8x at encoder quality 31 (worst one).*
+
+| Scale | Resolution | Normal Performance | Flawless Performance |
+| :---: | :---: | :---: | :---: |
+| **0.25x** | 60x34 | — | 60 FPS |
+| **0.5x** | 120x68 | 60 FPS | 50 FPS |
+| **1x (Native)** | 240x136 | 40 FPS | 30 FPS |
+| **2x** | 480x272 | 25 FPS | 20 FPS |
+| **4x** | 960x544 | 20 FPS | 15 FPS |
+| **8x** | 1920x1088 | 10 FPS | 5 FPS |
+
 ## Limitations
 - Lower quality compared to modern video formats (encoding isn't movement based like modern codecs, instead it's encoding each frame separately, which takes up a lot more bandwidth than something like H264)
 - No modern audio codec support
