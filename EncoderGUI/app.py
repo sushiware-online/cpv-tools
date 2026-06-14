@@ -93,7 +93,9 @@ class App(ctk.CTk):
         super().__init__()
 
         self.title("CPV2 Video Transcoder")
-        self.geometry("650x650")
+        # Increased initial window size and locked the minimum size to prevent hidden buttons
+        self.geometry("650x750")
+        self.minsize(600, 720)
         ctk.set_appearance_mode("dark")
         
         self.input_file = ""
@@ -112,15 +114,15 @@ class App(ctk.CTk):
         self.lbl_file = ctk.CTkLabel(self.file_frame, text="No file selected...", text_color="gray")
         self.lbl_file.pack(side="left", padx=10, pady=10, fill="x", expand=True)
 
-        # Config Panel Grid
+        # Config Panel Grid (Removed expand=True to prevent pushing other elements off-screen)
         self.config_frame = ctk.CTkFrame(self)
-        self.config_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        self.config_frame.pack(fill="x", padx=20, pady=10)
 
         # Scale Factor & Resolution Preview Block
-        ctk.CTkLabel(self.config_frame, text="Scale Factor:").grid(row=0, column=0, padx=15, pady=10, sticky="w")
+        ctk.CTkLabel(self.config_frame, text="Scale Factor:").grid(row=0, column=0, padx=15, pady=6, sticky="w")
         
         self.scale_container = ctk.CTkFrame(self.config_frame, fg_color="transparent")
-        self.scale_container.grid(row=0, column=1, padx=15, pady=10, sticky="w")
+        self.scale_container.grid(row=0, column=1, padx=15, pady=6, sticky="w")
         
         self.combo_scale = ctk.CTkComboBox(self.scale_container, values=["0.25", "0.5", "1.0", "2.0", "4.0", "8.0"], width=100, command=self.update_resolution_preview)
         self.combo_scale.set("1.0")
@@ -130,33 +132,33 @@ class App(ctk.CTk):
         self.lbl_res_preview.pack(side="left", padx=15)
 
         # FPS Selection
-        ctk.CTkLabel(self.config_frame, text="Target FPS:").grid(row=1, column=0, padx=15, pady=10, sticky="w")
+        ctk.CTkLabel(self.config_frame, text="Target FPS:").grid(row=1, column=0, padx=15, pady=6, sticky="w")
         self.entry_fps = ctk.CTkEntry(self.config_frame, placeholder_text="30")
         self.entry_fps.insert(0, "30")
-        self.entry_fps.grid(row=1, column=1, padx=15, pady=10, sticky="w")
+        self.entry_fps.grid(row=1, column=1, padx=15, pady=6, sticky="w")
 
         # Audio Codec
-        ctk.CTkLabel(self.config_frame, text="Audio Codec:").grid(row=2, column=0, padx=15, pady=10, sticky="w")
+        ctk.CTkLabel(self.config_frame, text="Audio Codec:").grid(row=2, column=0, padx=15, pady=6, sticky="w")
         self.combo_codec = ctk.CTkComboBox(self.config_frame, values=["adpcm", "pcm8_u", "pcm8_s", "pcm16"])
         self.combo_codec.set("pcm8_s")
-        self.combo_codec.grid(row=2, column=1, padx=15, pady=10, sticky="w")
+        self.combo_codec.grid(row=2, column=1, padx=15, pady=6, sticky="w")
 
         # Audio Sample Rate
-        ctk.CTkLabel(self.config_frame, text="Audio Rate (Hz):").grid(row=3, column=0, padx=15, pady=10, sticky="w")
+        ctk.CTkLabel(self.config_frame, text="Audio Rate (Hz):").grid(row=3, column=0, padx=15, pady=6, sticky="w")
         self.entry_rate = ctk.CTkEntry(self.config_frame, placeholder_text="16000")
         self.entry_rate.insert(0, "16000")
-        self.entry_rate.grid(row=3, column=1, padx=15, pady=10, sticky="w")
+        self.entry_rate.grid(row=3, column=1, padx=15, pady=6, sticky="w")
 
         # JPEG Quality
-        ctk.CTkLabel(self.config_frame, text="JPEG Quality (1-31):").grid(row=4, column=0, padx=15, pady=10, sticky="w")
+        ctk.CTkLabel(self.config_frame, text="JPEG Quality (1-31):").grid(row=4, column=0, padx=15, pady=6, sticky="w")
         self.entry_quality = ctk.CTkEntry(self.config_frame, placeholder_text="9")
         self.entry_quality.insert(0, "9")
-        self.entry_quality.grid(row=4, column=1, padx=15, pady=10, sticky="w")
+        self.entry_quality.grid(row=4, column=1, padx=15, pady=6, sticky="w")
 
-        # Base Dimensions inputs (Hidden or structured for background fallback metrics)
-        ctk.CTkLabel(self.config_frame, text="Base Canvas:").grid(row=5, column=0, padx=15, pady=10, sticky="w")
+        # Base Dimensions inputs
+        ctk.CTkLabel(self.config_frame, text="Base Canvas:").grid(row=5, column=0, padx=15, pady=6, sticky="w")
         self.base_dim_container = ctk.CTkFrame(self.config_frame, fg_color="transparent")
-        self.base_dim_container.grid(row=5, column=1, padx=15, pady=10, sticky="w")
+        self.base_dim_container.grid(row=5, column=1, padx=15, pady=6, sticky="w")
         
         self.entry_base_w = ctk.CTkEntry(self.base_dim_container, width=60)
         self.entry_base_w.insert(0, "240")
@@ -169,7 +171,7 @@ class App(ctk.CTk):
 
         # Flags & Options
         self.switch_rotate = ctk.CTkSwitch(self.config_frame, text="Disable Auto-Rotate Landscape", command=self.update_resolution_preview)
-        self.switch_rotate.grid(row=6, column=0, columnspan=2, padx=15, pady=10, sticky="w")
+        self.switch_rotate.grid(row=6, column=0, columnspan=2, padx=15, pady=8, sticky="w")
 
         # System Console Logging View
         self.txt_log = ctk.CTkTextbox(self, height=130, font=ctk.CTkFont(family="monospace"))
@@ -185,7 +187,6 @@ class App(ctk.CTk):
         self.txt_log.see("end")
 
     def update_resolution_preview(self, *args):
-        # Calculate sizing layout dynamically to update GUI text label
         try:
             scale = float(self.combo_scale.get())
             base_w = int(self.entry_base_w.get())
@@ -195,11 +196,10 @@ class App(ctk.CTk):
             target_canvas_w = int(base_w * scale)
             target_canvas_h = int(base_h * scale)
 
-            # Default viewport baseline if file hasn't been parsed yet
             w, h = (self.orig_w, self.orig_h) if self.orig_w > 0 else (1920, 1080)
             
             if h > w and not no_rotate:
-                w, h = h, w # Simulated orientation layout switch
+                w, h = h, w
 
             scale_factor = min(target_canvas_w / w, target_canvas_h / h)
             encoded_w = max(8, (int(w * scale_factor) // 8) * 8)
@@ -216,7 +216,6 @@ class App(ctk.CTk):
             self.lbl_file.configure(text=os.path.basename(file_path), text_color="white")
             self.log_message(f"[*] Loaded Source target: {file_path}")
             
-            # Fetch physical attributes to drive calculations early
             self.orig_w, self.orig_h = get_video_dimensions(self.input_file)
             self.update_resolution_preview()
 
