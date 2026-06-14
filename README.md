@@ -1,7 +1,7 @@
 # CPV - (M5Stack) Cardputer Video
 
 ## Quick downloads
-- [Latest CPVPlayer along with compiled EncoderGUI](https://github.com/sushiware-online/cpv-tools/releases/latest)
+- **[Latest CPVPlayer along with compiled EncoderGUI](https://github.com/sushiware-online/cpv-tools/releases/latest) (you probably want this one)**
 - [Proxy for transcoding with yt-dlp support (need Python 3, working yt-dlp and Flask!)](https://github.com/sushiware-online/cpv-tools/tree/main/TranscodingProxy)
 - [Not compiled EncoderGUI (needs Python 3 + ffmpeg)](https://github.com/sushiware-online/cpv-tools/tree/main/EncoderGUI)
 - [CLI Tools (vid2cpv, cpv2avi) (needs Python 3 + ffmpeg)](https://github.com/sushiware-online/cpv-tools/tree/main/CLITools)
