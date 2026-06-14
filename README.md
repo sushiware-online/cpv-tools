@@ -1,4 +1,11 @@
 # CPV - (M5Stack) Cardputer Video
+
+## Quick downloads
+- [Latest CPVPlayer along with compiled EncoderGUI](https://github.com/sushiware-online/cpv-tools/releases/latest)
+- [Proxy for transcoding with yt-dlp support (need Python 3, working yt-dlp and Flask!)](https://github.com/sushiware-online/cpv-tools/tree/main/TranscodingProxy)
+- [Not compiled EncoderGUI (needs Python 3 + ffmpeg)](https://github.com/sushiware-online/cpv-tools/tree/main/EncoderGUI)
+- [CLI Tools (vid2cpv, cpv2avi) (needs Python 3 + ffmpeg)](https://github.com/sushiware-online/cpv-tools/tree/main/CLITools)
+
 ## Why was this made?
 The old video player that was made for the M5Stack Cardputer [(this one)](https://github.com/williamd1k0/m5-vids) didn't allow for much freedom, since it was hardcoded to display video only in the native resolution and only 8-bit unsigned PCM in two separate files, which makes downloads over-the-air more difficult since you need more than one file.
 
@@ -11,7 +18,7 @@ There's also a transcoding proxy provided that allows use of either direct files
 - Makes use of [bitbank2's JPEGDEC](https://github.com/bitbank2/JPEGDEC)
 - Transcode proxy support
 - Resolutions down from 60x34 up to 1920x1088 supported
-- 60 fps possible at 0.5x scale (120x68) (thanks to [JPEGDEC](https://github.com/bitbank2/JPEGDEC)
+- 60 fps possible at 0.5x scale (120x68) (thanks to [JPEGDEC](https://github.com/bitbank2/JPEGDEC))
 - Optimized format made purely for the Cardputer that can be converted back to AVI
 - Audio is synced with the video
 - Supports PCM 16-bit, 8-bit signed, 8-bit unsigned and ADPCM for audio.
