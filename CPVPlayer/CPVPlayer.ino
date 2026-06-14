@@ -100,6 +100,8 @@ String get_text_input(const String &title, const String &initial_val);
 void show_popup_msg(const String &msg, uint16_t color);
 void draw_dialog(const String &title, const std::vector<String> &options, int opt_sel);
 void run_video_player(String path);
+void save_links_to_csv(String file_path, const std::vector<LinkEntry>& links);
+void run_delete_link(String file_path, std::vector<LinkEntry>& links, int idx);
 void open_csv_link_list(String file_path);
 void handle_direct_link_operations(String url);
 void run_download_direct_url(String url);
@@ -1344,6 +1346,62 @@ String run_file_selector() {
 
 // --- CSV FILE URL EXPLORER PIPELINE ---
 
+void save_links_to_csv(String file_path, const std::vector<LinkEntry>& links) {
+    File f = SD.open(file_path.c_str(), FILE_WRITE);
+    if (f) {
+        f.println("# Title,URL");
+        for (const auto &link : links) {
+            String title = link.title;
+            // Escape commas if the title contains commas
+            if (title.indexOf(',') != -1) {
+                title = "\"" + title + "\"";
+            }
+            f.println(title + "," + link.url);
+        }
+        f.close();
+    }
+}
+
+void run_delete_link(String file_path, std::vector<LinkEntry>& links, int idx) {
+    std::vector<String> opts = {"1. YES (Delete Link)", "2. NO (Cancel)"};
+    int sel = 1;
+    bool redraw_conf = true;
+    uint32_t last_conf_move = 0;
+    
+    while (true) {
+        if (redraw_conf) {
+            draw_dialog("Delete Link?", opts, sel);
+            redraw_conf = false;
+        }
+        M5Cardputer.update();
+        if (M5Cardputer.Keyboard.isPressed()) {
+            Keyboard_Class::KeysState keys = M5Cardputer.Keyboard.keysState();
+            bool up = false, down = false, enter = keys.enter;
+            for (auto key : keys.word) {
+                if (key == ';') up = true;
+                if (key == '.') down = true;
+            }
+            uint32_t now = millis();
+            if (up && (now - last_conf_move > 200)) {
+                if (sel > 0) { sel--; redraw_conf = true; }
+                last_conf_move = now;
+            } else if (down && (now - last_conf_move > 200)) {
+                if (sel < 1) { sel++; redraw_conf = true; }
+                last_conf_move = now;
+            } else if (enter) {
+                delay(200);
+                if (sel == 0) {
+                    links.erase(links.begin() + idx);
+                    save_links_to_csv(file_path, links);
+                    show_popup_msg("Link Deleted!", TFT_GREEN);
+                }
+                break;
+            }
+        }
+        delay(20);
+    }
+}
+
 void open_csv_link_list(String file_path) {
     if (!SD.exists(file_path.c_str())) {
         File f = SD.open(file_path.c_str(), FILE_WRITE);
@@ -1358,6 +1416,7 @@ void open_csv_link_list(String file_path) {
     int selected = 0;
     bool redraw = true;
     uint32_t last_move_ms = 0;
+    uint32_t last_del_ms = 0;
     
     while (true) {
         if (needs_reload) {
@@ -1452,6 +1511,7 @@ void open_csv_link_list(String file_path) {
             bool down_pressed = false;
             bool enter_pressed = keys.enter;
             bool esc_pressed = false;
+            bool del_pressed = keys.del;
             
             for (auto i : keys.word) {
                 if (i == ';') up_pressed = true;
@@ -1472,6 +1532,13 @@ void open_csv_link_list(String file_path) {
             else if (esc_pressed) {
                 delay(200);
                 break; 
+            }
+            else if (del_pressed && (now - last_del_ms > 300)) {
+                last_del_ms = now;
+                if (selected > 0) {
+                    run_delete_link(file_path, links, selected - 1);
+                    needs_reload = true;
+                }
             }
             else if (enter_pressed) {
                 delay(200);
