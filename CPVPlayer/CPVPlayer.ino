@@ -750,7 +750,7 @@ void run_download_url() {
     if (!is_cpv) {
         load_config();
         if (proxy_url == "") {
-            proxy_url = "http://";
+            proxy_url = "http://cpv.sushiware.online";
         }
         proxy_url = get_text_input("Proxy Base URL:", proxy_url);
         save_config();
