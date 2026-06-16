@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 import os
-import sys
 import re
 import struct
 import tempfile
 import shutil
-import wave
 import subprocess
-from flask import Flask, request, send_file, after_this_request
+import logging
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi.responses import FileResponse
 
-app = Flask(__name__)
+# Configure production logging
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s")
+logger = logging.getLogger("CPV2_FastAPI")
 
-# --- Transcoding Engine (CPV2 Format) ---
+app = FastAPI(title="CPV2 Production Transcoder Engine")
+
+# --- Optimized Transcoding Engine (CPV2 Format) ---
 StepTable = [
     7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
     50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143, 157, 173, 190, 209, 230,
@@ -23,18 +27,22 @@ StepTable = [
 IndexTable = [-1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4, 6, 8]
 
 class ADPCMEncoder:
+    __slots__ = ['valpred', 'index']
     def __init__(self):
         self.valpred = 0
         self.index = 0
 
     def encode(self, pcm_data):
-        encoded = bytearray()
+        # Safe memory allocation using ceiling division rule to prevent index errors
+        encoded = bytearray((len(pcm_data) + 1) // 2)
+        idx = 0
         for i in range(0, len(pcm_data), 2):
             sample0 = pcm_data[i]
             sample1 = pcm_data[i+1] if (i+1) < len(pcm_data) else 0
             code0 = self.encode_sample(sample0)
             code1 = self.encode_sample(sample1)
-            encoded.append((code1 << 4) | code0)
+            encoded[idx] = (code1 << 4) | code0
+            idx += 1
         return bytes(encoded)
 
     def encode_sample(self, sample):
@@ -55,7 +63,6 @@ class ADPCMEncoder:
         temp_step >>= 1
         if diff >= temp_step:
             code |= 1
-            diff -= temp_step
             
         vpdiff = step >> 3
         if code & 4: vpdiff += step
@@ -65,92 +72,95 @@ class ADPCMEncoder:
         if code & 8: self.valpred -= vpdiff
         else: self.valpred += vpdiff
         
-        self.valpred = max(-32768, min(32767, self.valpred))
-        self.index = max(0, min(88, self.index + IndexTable[code & 7]))
+        if self.valpred > 32767: self.valpred = 32767
+        elif self.valpred < -32768: self.valpred = -32768
+
+        self.index += IndexTable[code & 7]
+        if self.index < 0: self.index = 0
+        elif self.index > 88: self.index = 88
         return code
 
-def get_video_dimensions(input_path):
+def get_video_dimensions(input_path: str):
     cmd = ["ffmpeg", "-i", input_path]
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    output = result.stderr
-    match = re.search(r"Video:.*?\s(\d{3,5})x(\d{3,5})", output)
+    match = re.search(r"Video:.*?\s(\d{3,5})x(\d{3,5})", result.stderr)
     if match:
         return int(match.group(1)), int(match.group(2))
-    matches = re.findall(r"(\d{3,5})x(\d{3,5})", output)
-    if matches:
-        for w, h in matches:
-            if int(w) > 100 and int(h) > 100:
-                return int(w), int(h)
-    return 1920, 1080
+    return 240, 136
 
-# Default audio_rate updated here to 22050
-def transcode_to_cpv(input_video, output_cpv, scale=1.0, fps=30, audio_rate=22050, audio_codec="pcm8_s", quality=12, base_width=240, base_height=136, no_rotate=False):
-    # Retrieve base dimensions
+def transcode_to_cpv(input_video: str, output_cpv: str, scale: float, fps: int, audio_rate: int, audio_codec: str, quality: int):
     orig_w, orig_h = get_video_dimensions(input_video)
     
     rotate_video = False
-    if orig_h > orig_w and not no_rotate:
+    if orig_h > orig_w:
         rotate_video = True
         orig_w, orig_h = orig_h, orig_w
         
-    target_canvas_w = int(base_width * scale)
-    target_canvas_h = int(base_height * scale)
+    target_canvas_w = int(240 * scale)
+    target_canvas_h = int(136 * scale)
     
     scale_factor = min(target_canvas_w / orig_w, target_canvas_h / orig_h)
-    encoded_w = (int(orig_w * scale_factor) // 8) * 8
-    encoded_h = (int(orig_h * scale_factor) // 8) * 8
-    encoded_w = max(8, encoded_w)
-    encoded_h = max(8, encoded_h)
+    encoded_w = max(8, (int(orig_w * scale_factor) // 8) * 8)
+    encoded_h = max(8, (int(orig_h * scale_factor) // 8) * 8)
     
     x_offset = (target_canvas_w - encoded_w) // 2
     y_offset = (target_canvas_h - encoded_h) // 2
-    
-    temp_dir = tempfile.mkdtemp()
-    temp_wav = os.path.join(temp_dir, "audio.wav")
-    
-    # Process audio
-    subprocess.run([
+
+    # Audio Pipe -> RAM Memory
+    audio_cmd = [
         "ffmpeg", "-y", "-i", input_video, 
         "-ac", "1", "-ar", str(audio_rate), 
-        "-f", "wav", "-acodec", pcm_codec_mapping(audio_codec), temp_wav
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
-    # Process video filters
-    vf_chain = ""
-    if rotate_video:
-        vf_chain += "transpose=1,"
+        "-f", "s16le", "-acodec", "pcm_s16le", "-"
+    ]
+    audio_proc = subprocess.run(audio_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    pcm_bytes = audio_proc.stdout
+    total_samples = len(pcm_bytes) // 2
+    pcm_samples = struct.unpack(f"<{total_samples}h", pcm_bytes)
+
+    # Video Pipe -> RAM Memory
+    vf_chain = "transpose=1," if rotate_video else ""
     vf_chain += f"fps={fps},scale={encoded_w}:{encoded_h}"
     
-    subprocess.run([
+    video_cmd = [
         "ffmpeg", "-y", "-i", input_video,
-        "-vf", vf_chain,
-        "-q:v", str(quality),
-        os.path.join(temp_dir, "frame_%06d.jpg")
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        "-vf", vf_chain, "-q:v", str(quality),
+        "-f", "image2pipe", "-vcodec", "mjpeg", "-"
+    ]
     
-    with wave.open(temp_wav, "rb") as w:
-        frames = w.readframes(w.getnframes())
-        pcm_samples = list(struct.unpack(f"<{w.getnframes()}h", frames))
+    video_proc = subprocess.Popen(video_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+    jpg_frames = []
+    buffer = bytearray()
+    while True:
+        chunk = video_proc.stdout.read(65536)
+        if not chunk:
+            break
+        buffer.extend(chunk)
         
-    jpg_files = sorted([f for f in os.listdir(temp_dir) if f.startswith("frame_")])
-    total_frames = len(jpg_files)
-    
+        while True:
+            start = buffer.find(b'\xff\xd8')
+            if start == -1:
+                break
+            end = buffer.find(b'\xff\xd9', start)
+            if end == -1:
+                break
+            
+            jpg_frames.append(bytes(buffer[start:end+2]))
+            del buffer[:end+2]
+
+    video_proc.wait()
+    total_frames = len(jpg_frames)
+    if total_frames == 0:
+        raise RuntimeError("No video frames could be processed.")
+
     codec_ids = {"pcm8_u": 1, "pcm8_s": 2, "pcm16": 3, "adpcm": 4}
-    codec_id = codec_ids[audio_codec]
+    codec_id = codec_ids.get(audio_codec, 4)
     
     with open(output_cpv, "wb") as out:
         header_data = struct.pack(
             "<4sHHfBIBHHI",
-            b"CPV2",
-            encoded_w,
-            encoded_h,
-            scale,
-            fps,
-            audio_rate,
-            codec_id,
-            x_offset,
-            y_offset,
-            total_frames
+            b"CPV2", encoded_w, encoded_h, scale,
+            fps, audio_rate, codec_id, x_offset, y_offset, total_frames
         )
         out.write(header_data)
         
@@ -160,11 +170,15 @@ def transcode_to_cpv(input_video, output_cpv, scale=1.0, fps=30, audio_rate=2205
         for i in range(total_frames):
             start_s = int(i * samples_per_frame)
             end_s = int((i + 1) * samples_per_frame)
-            frame_samples = pcm_samples[start_s:end_s]
+            frame_samples = list(pcm_samples[start_s:end_s])
             
             needed = int(end_s - start_s)
             if len(frame_samples) < needed:
                 frame_samples += [0] * (needed - len(frame_samples))
+                
+            # Structural alignment fix: guarantee an even number of elements
+            if len(frame_samples) % 2 != 0:
+                frame_samples.append(0)
                 
             if audio_codec == "adpcm":
                 audio_chunk = adpcm_encoder.encode(frame_samples)
@@ -172,86 +186,72 @@ def transcode_to_cpv(input_video, output_cpv, scale=1.0, fps=30, audio_rate=2205
                 audio_chunk = bytes([int((s + 32768) >> 8) for s in frame_samples])
             elif audio_codec == "pcm8_s":
                 audio_chunk = bytes([int(s >> 8) & 0xFF for s in frame_samples])
-            else: # pcm16
+            else:
                 audio_chunk = struct.pack(f"<{len(frame_samples)}h", *frame_samples)
                 
-            jpg_path = os.path.join(temp_dir, jpg_files[i])
-            with open(jpg_path, "rb") as f_jpg:
-                jpg_data = f_jpg.read()
-                
+            jpg_data = jpg_frames[i]
             out.write(struct.pack("<II", len(audio_chunk), len(jpg_data)))
             out.write(audio_chunk)
             out.write(jpg_data)
-            
-    shutil.rmtree(temp_dir)
 
-def pcm_codec_mapping(codec):
-    return "pcm_s16le" 
 
-# --- Flask Server Routes ---
+def cleanup_workspace(workspace_dir: str):
+    try:
+        shutil.rmtree(workspace_dir)
+        logger.info(f"Asynchronous cleanup success for: {workspace_dir}")
+    except Exception as e:
+        logger.error(f"Cleanup failed: {e}")
 
-@app.route("/transcode")
-def transcode_route():
-    video_url = request.args.get("url")
-    if not video_url:
-        return "Missing 'url' query parameter.", 400
-    
-    scale = float(request.args.get("scale", 1.0))
-    fps = int(request.args.get("fps", 15))
-    audio_rate = int(request.args.get("audio_rate", 11025))
-    audio_codec = request.args.get("audio_codec", "adpcm")
-    quality = int(request.args.get("quality", 15))
-    
+# --- API Routing Logic ---
+
+@app.get("/transcode")
+async def transcode_route(
+    background_tasks: BackgroundTasks,
+    url: str = Query(..., description="Target source stream URL"),
+    scale: float = 1.0,
+    fps: int = 15,
+    audio_rate: int = 11025,
+    audio_codec: str = "pcm8_s",
+    quality: int = 16
+):
     temp_workspace = tempfile.mkdtemp()
     temp_input = os.path.join(temp_workspace, "raw_source.mp4")
     temp_output = os.path.join(temp_workspace, "transcoded.cpv")
     
     try:
-        print(f"[*] Downloading source via yt-dlp: {video_url}")
+        logger.info(f"Targeting: {url}")
         
-        # yt-dlp config targeted explicitly at 360p streams
         ytdl_cmd = [
             "yt-dlp",
-            "-f", "worstvideo[height>=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360][ext=mp4]",
+            "-f", "bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360][ext=mp4]/worst",
             "-o", temp_input,
-            video_url
+            url
         ]
         
         result = subprocess.run(ytdl_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        
         if result.returncode != 0:
             raise RuntimeError(f"yt-dlp failed: {result.stderr}")
             
-        print("[*] Transcoding video...")
+        logger.info("Transcoding via internal memory streams...")
         transcode_to_cpv(
-            input_video=temp_input,
-            output_cpv=temp_output,
-            scale=scale,
-            fps=fps,
-            audio_rate=audio_rate,
-            audio_codec=audio_codec,
-            quality=quality
+            input_video=temp_input, output_cpv=temp_output,
+            scale=scale, fps=fps, audio_rate=audio_rate,
+            audio_codec=audio_codec, quality=quality
         )
-        print("[+] Done. Sending stream to client...")
         
-        @after_this_request
-        def remove_temporary_files(resp):
-            try:
-                shutil.rmtree(temp_workspace)
-                print("[+] Workspace cleaned up.")
-            except Exception as e:
-                print(f"[-] Cleanup error: {e}")
-            return resp
-            
-        return send_file(temp_output, as_attachment=True, download_name="transcoded.cpv")
+        # Async callback registers folder removal AFTER asset dispatch completes
+        background_tasks.add_task(cleanup_workspace, temp_workspace)
+        
+        return FileResponse(
+            path=temp_output, 
+            filename="transcoded.cpv", 
+            media_type="application/octet-stream"
+        )
         
     except Exception as e:
-        print(f"[-] Execution error: {e}")
+        logger.error(f"Transcoding error encountered: {e}")
         try:
             shutil.rmtree(temp_workspace)
         except:
             pass
-        return f"Transcoding failure: {str(e)}", 500
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+        raise HTTPException(status_code=500, detail=str(e))
