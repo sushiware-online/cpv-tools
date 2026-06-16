@@ -1,5 +1,7 @@
 # CPV - (M5Stack) Cardputer Video
 
+A transcoder is hosted at https://cpv.sushiware.online
+
 ## Quick downloads
 - **[Latest CPVPlayer along with compiled EncoderGUI](https://github.com/sushiware-online/cpv-tools/releases/latest) (you probably want this one, remember you need ffmpeg in path/beside the executable, [here's the Windows download](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z))**
 - [Proxy for transcoding with yt-dlp support (need Python 3, working yt-dlp and Flask!)](https://github.com/sushiware-online/cpv-tools/tree/main/TranscodingProxy)
