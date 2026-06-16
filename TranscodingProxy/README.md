@@ -2,7 +2,7 @@
 
 # Cardputer Video (CPV2) Transcoder Server
 
-An efficient, lightweight Flask-based transcoding server that converts web video URLs (YouTube, Twitch, direct streams) into **Cardputer Video (CPV2)**—a highly optimized, low-overhead custom video format designed explicitly for the M5Stack Cardputer.
+An efficient, lightweight FastAPI-based transcoding server that converts web video URLs (YouTube, Twitch, direct streams) into **Cardputer Video (CPV2)**—a highly optimized, low-overhead custom video format designed explicitly for the M5Stack Cardputer.
 
 This tool strips out heavy container parsing and high-compute codecs, delivering an interleaved binary stream of raw audio chunks and JPEG frames that the Cardputer’s ESP32 can decode and render on-the-fly via libraries like `M5GFX` without breaking its strict hardware budget.
 
@@ -24,19 +24,19 @@ cd cpv-tools/TranscodingProxy
 
 2. **Install Dependencies:**
 ```bash
-pip install flask yt-dlp
+pip install uvicorn fastapi yt-dlp
 
 ```
 
 
 3. **Run the Server:**
 ```bash
-python app.py
+uvicorn app:app --host 0.0.0.0 --port 5001 --workers 4
 
 ```
 
 
-The Flask environment will launch locally at `http://localhost:5000`.
+The FastAPI environment will launch locally at `http://localhost:5001`.
 
 ---
 
@@ -48,13 +48,11 @@ Processes the provided video URL and returns a download attachment stream contai
 
 #### Default Cardputer Specifications
 
-If query parameters are omitted, the transcoder defaults to an aggressive, low-overhead configuration tuned to hit a tight ~80kB/s streaming target for stable ESP32 SPI/Wi-Fi performance:
-
 * **Scale**: `1.0` (Native Canvas sizing, targeted to base 240x136 layout)
-* **Video Framerate**: `30 FPS`
+* **Video Framerate**: `15 FPS`
 * **Audio Format**: `pcm8_s` (8-bit Signed Raw PCM)
-* **Audio Rate**: `22050 Hz`
-* **JPEG Quality Value**: `12`
+* **Audio Rate**: `11025 Hz`
+* **JPEG Quality Value**: `15`
 
 #### Query Parameters
 
@@ -62,10 +60,10 @@ If query parameters are omitted, the transcoder defaults to an aggressive, low-o
 | --- | --- | --- | --- |
 | `url` | `string` | *Required* | URL of the video (YouTube, Twitch, direct file, etc.) |
 | `scale` | `float` | `1.0` | Output scaling factor |
-| `fps` | `int` | `30` | Framerate of targeted playback |
-| `audio_rate` | `int` | `22050` | Output target sample rate in Hz |
+| `fps` | `int` | `15` | Framerate of targeted playback |
+| `audio_rate` | `int` | `11025` | Output target sample rate in Hz |
 | `audio_codec` | `string` | `pcm8_s` | Audio type payload selection: `pcm8_u`, `pcm8_s`, `pcm16`, `adpcm` |
-| `quality` | `int` | `12` | FFmpeg JPEG compression scale factor (`1`-`31`). Higher means lower quality. |
+| `quality` | `int` | `15` | FFmpeg JPEG compression scale factor (`1`-`31`). Higher means lower quality. |
 
 #### Example Request
 
