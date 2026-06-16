@@ -1,9 +1,7 @@
 # CPV - (M5Stack) Cardputer Video
 
-A transcoder is hosted at http://cpv.sushiware.online
-
 ## Quick downloads
-- **[Latest CPVPlayer along with compiled EncoderGUI](https://github.com/sushiware-online/cpv-tools/releases/latest) (you probably want this one, remember you need ffmpeg in path/beside the executable, [here's the Windows download](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z))**
+- **[Latest CPVPlayer along with compiled EncoderGUI](https://github.com/sushiware-online/cpv-tools/releases/latest) (you probably want this one, remember you need ffmpeg in path/beside the executable for EncoderGUI, [here's the Windows download](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z))**
 - [Proxy for transcoding with yt-dlp support (need Python 3, working yt-dlp and Flask!)](https://github.com/sushiware-online/cpv-tools/tree/main/TranscodingProxy)
 - [Not compiled EncoderGUI (for platforms other than Windows, needs Python 3 + ffmpeg)](https://github.com/sushiware-online/cpv-tools/tree/main/EncoderGUI)
 - [CLI Tools (vid2cpv, cpv2avi) (needs Python 3 + ffmpeg)](https://github.com/sushiware-online/cpv-tools/tree/main/CLITools)
@@ -12,14 +10,14 @@ A transcoder is hosted at http://cpv.sushiware.online
 The old video player that was made for the M5Stack Cardputer [(this one)](https://github.com/williamd1k0/m5-vids) didn't allow for much freedom, since it was hardcoded to display video only in the native resolution and only 8-bit unsigned PCM in two separate files, which makes downloads over-the-air more difficult since you need more than one file.
 
 The player here uses a custom .CPV container/format that contains the same codec as the last one (MotionJPEG), but with much more flexibility.
-Want to make the audio higher quality? Maybe lower qualiy? Maybe want to play 1920x1088 files for some reason? You can do all that with CPV (if there's enough RAM/bandwidth of course).
+Want to make the audio higher quality? Maybe lower qualiy? Maybe want to play 1920x1088 files for some reason? You can do all that with CPV.
 There's also a transcoding proxy provided that allows use of either direct files, or yt-dlp to download videos from supported sites and play them on your Cardputer!
 
 ## Features
 - Downloading videos OTA
 - Makes use of [bitbank2's JPEGDEC](https://github.com/bitbank2/JPEGDEC)
-- Transcode proxy support
-- Resolutions down from 60x34 up to 1920x1088 supported
+- Transcode proxy support with yt-dlp and ffmpeg (URL for one is built-in!)
+- Resolutions down from 60x34 (60 FPS) up to 1920x1088 (5 FPS) supported
 - 60 fps possible at 0.5x scale (120x68) (thanks to [JPEGDEC](https://github.com/bitbank2/JPEGDEC))
 - Optimized format made purely for the Cardputer that can be converted back to AVI
 - Audio is synced with the video
