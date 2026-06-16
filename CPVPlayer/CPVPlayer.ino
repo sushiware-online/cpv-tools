@@ -696,7 +696,7 @@ String url_encode(String str) {
 }
 
 bool ask_if_cpv() {
-    std::vector<String> options = {"1. Yes, CPV Format", "2. No, Transcode"};
+    std::vector<String> options = {"1. Transcode video to CPV", "2. Download as is"};
     int opt_sel = 0;
     bool redraw_dlg = true;
     uint32_t last_dlg_move = 0;
@@ -724,7 +724,7 @@ bool ask_if_cpv() {
                 last_dlg_move = now;
             } else if (enter) {
                 delay(200);
-                return (opt_sel == 0);
+                return (opt_sel != 0);
             }
         }
         delay(20);
