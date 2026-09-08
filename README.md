@@ -1,4 +1,4 @@
-# CPV - (M5Stack) Cardputer Video - Tools: Player, Transcoder and Encoder.
+# CPV - (M5Stack) Cardputer Video Tools: Player, Transcoder and Encoder.
 
 ## Quick downloads
 - **[Latest CPVPlayer along with compiled EncoderGUI](https://github.com/sushiware-online/cpv-tools/releases/latest) (you probably want this one, remember you need ffmpeg in path/beside the executable for EncoderGUI, [here's the Windows download](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z))**
