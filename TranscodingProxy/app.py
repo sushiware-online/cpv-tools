@@ -15,6 +15,9 @@ logger = logging.getLogger("CPV2_FastAPI")
 
 app = FastAPI(title="CPV2 Production Transcoder Engine")
 
+YTDL_BIN = "/opt/cpv-transcoder/venv/bin/yt-dlp" if os.path.exists("/opt/cpv-transcoder/venv/bin/yt-dlp") else (shutil.which("yt-dlp") or "yt-dlp")
+ORIGINAL_COOKIES_PATH = "/opt/cpv-transcoder/cookies.txt"
+
 # --- Optimized Transcoding Engine (CPV2 Format) ---
 StepTable = [
     7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
@@ -195,6 +198,24 @@ def transcode_to_cpv(input_video: str, output_cpv: str, scale: float, fps: int, 
             out.write(jpg_data)
 
 
+def prepare_ytdl_command(url: str, output_path: str, workspace_dir: str):
+    ytdl_cmd = [
+        YTDL_BIN,
+        "--max-filesize", "256m",
+        "--match-filter", "duration < 1800",
+        "-f", "bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360][ext=mp4]/worst",
+    ]
+    if os.path.exists(ORIGINAL_COOKIES_PATH):
+        temp_cookies = os.path.join(workspace_dir, "cookies.txt")
+        try:
+            shutil.copyfile(ORIGINAL_COOKIES_PATH, temp_cookies)
+            ytdl_cmd.extend(["--cookies", temp_cookies])
+        except Exception as e:
+            logger.warning(f"Could not copy cookies: {e}")
+    ytdl_cmd.extend(["-o", output_path, url])
+    return ytdl_cmd
+
+
 def cleanup_workspace(workspace_dir: str):
     try:
         shutil.rmtree(workspace_dir)
@@ -208,45 +229,50 @@ def cleanup_workspace(workspace_dir: str):
 async def transcode_route(
     background_tasks: BackgroundTasks,
     url: str = Query(..., description="Target source stream URL"),
+    format: str = Query("cpv", description="Output format: 'cpv' or 'mpg'/'mpeg'"),
     scale: float = 1.0,
-    fps: int = 15,
-    audio_rate: int = 11025,
+    fps: int = 30,
+    audio_rate: int = 22050,
     audio_codec: str = "pcm8_s",
-    quality: int = 16
+    quality: int = 16,
+    bitrate: str = "128k",
+    audio_bitrate: str = "48k"
 ):
     temp_workspace = tempfile.mkdtemp()
     temp_input = os.path.join(temp_workspace, "raw_source.mp4")
-    temp_output = os.path.join(temp_workspace, "transcoded.cpv")
     
     try:
-        logger.info(f"Targeting: {url}")
+        logger.info(f"Targeting: {url} (format={format})")
         
-        ytdl_cmd = [
-            "yt-dlp",
-            "-f", "bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360][ext=mp4]/worst",
-            "-o", temp_input,
-            url
-        ]
-        
+        ytdl_cmd = prepare_ytdl_command(url, temp_input, temp_workspace)
         result = subprocess.run(ytdl_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"yt-dlp failed: {result.stderr}")
             
-        logger.info("Transcoding via internal memory streams...")
-        transcode_to_cpv(
-            input_video=temp_input, output_cpv=temp_output,
-            scale=scale, fps=fps, audio_rate=audio_rate,
-            audio_codec=audio_codec, quality=quality
-        )
-        
-        # Async callback registers folder removal AFTER asset dispatch completes
-        background_tasks.add_task(cleanup_workspace, temp_workspace)
-        
-        return FileResponse(
-            path=temp_output, 
-            filename="transcoded.cpv", 
-            media_type="application/octet-stream"
-        )
+        if format.lower() in ("mpg", "mpeg"):
+            temp_output = os.path.join(temp_workspace, "transcoded.mpg")
+            logger.info("Transcoding via MPEG-1 stream...")
+            transcode_to_mpg(input_video=temp_input, output_mpg=temp_output, fps=fps, bitrate=bitrate, audio_rate=audio_rate, audio_bitrate=audio_bitrate)
+            background_tasks.add_task(cleanup_workspace, temp_workspace)
+            return FileResponse(
+                path=temp_output, 
+                filename="transcoded.mpg", 
+                media_type="video/mpeg"
+            )
+        else:
+            temp_output = os.path.join(temp_workspace, "transcoded.cpv")
+            logger.info("Transcoding via CPV stream...")
+            transcode_to_cpv(
+                input_video=temp_input, output_cpv=temp_output,
+                scale=scale, fps=fps, audio_rate=audio_rate,
+                audio_codec=audio_codec, quality=quality
+            )
+            background_tasks.add_task(cleanup_workspace, temp_workspace)
+            return FileResponse(
+                path=temp_output, 
+                filename="transcoded.cpv", 
+                media_type="application/octet-stream"
+            )
         
     except Exception as e:
         logger.error(f"Transcoding error encountered: {e}")
@@ -255,3 +281,74 @@ async def transcode_route(
         except:
             pass
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def transcode_to_mpg(input_video: str, output_mpg: str, fps: int = 30, bitrate: str = "128k", audio_rate: int = 32000, audio_bitrate: str = "48k"):
+    orig_w, orig_h = get_video_dimensions(input_video)
+    rotate = (orig_h > orig_w)
+    filters = []
+    if rotate:
+        filters.append("transpose=1")
+    filters.append("scale=240:136:force_original_aspect_ratio=decrease,pad=240:136:(ow-iw)/2:(oh-ih)/2:black")
+    vf = ",".join(filters)
+
+    try:
+        val = int(bitrate.lower().replace("k", ""))
+        maxrate = f"{int(val * 1.3)}k"
+    except ValueError:
+        maxrate = "170k"
+
+    cmd = [
+        "ffmpeg", "-y", "-i", input_video,
+        "-vf", vf, "-r", str(fps),
+        "-c:v", "mpeg1video", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", "80k", "-g", str(max(1, fps * 3)), "-bf", "2",
+        "-c:a", "mp2", "-ar", str(audio_rate), "-ac", "1", "-b:a", audio_bitrate,
+        "-max_delay", "200000",
+        "-f", "mpeg", output_mpg
+    ]
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if res.returncode != 0:
+        raise RuntimeError(f"MPEG-1 transcode failed: {res.stderr.decode('utf-8', errors='ignore')}")
+
+
+@app.get("/transcode_mpg")
+async def transcode_mpg_route(
+    background_tasks: BackgroundTasks,
+    url: str = Query(..., description="Target source stream URL"),
+    fps: int = 30,
+    bitrate: str = "128k",
+    audio_rate: int = 32000,
+    audio_bitrate: str = "48k"
+):
+    temp_workspace = tempfile.mkdtemp()
+    temp_input = os.path.join(temp_workspace, "raw_source.mp4")
+    temp_output = os.path.join(temp_workspace, "transcoded.mpg")
+    
+    try:
+        logger.info(f"Targeting MPEG-1: {url}")
+        ytdl_cmd = prepare_ytdl_command(url, temp_input, temp_workspace)
+        result = subprocess.run(ytdl_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"yt-dlp failed: {result.stderr}")
+            
+        logger.info("Transcoding via MPEG-1 stream...")
+        transcode_to_mpg(
+            input_video=temp_input, output_mpg=temp_output,
+            fps=fps, bitrate=bitrate, audio_rate=audio_rate,
+            audio_bitrate=audio_bitrate
+        )
+        
+        background_tasks.add_task(cleanup_workspace, temp_workspace)
+        return FileResponse(
+            path=temp_output, 
+            filename="transcoded.mpg", 
+            media_type="video/mpeg"
+        )
+    except Exception as e:
+        logger.error(f"Transcoding error encountered: {e}")
+        try:
+            shutil.rmtree(temp_workspace)
+        except:
+            pass
+        raise HTTPException(status_code=500, detail=str(e))
+

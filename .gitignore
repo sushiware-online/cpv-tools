@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C / C++ / Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.elf
+*.bin
+*.hex
+*.map
+*.dSYM/
+build/
+dist/
+
+# System and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
+
+# Environments
+.env
+venv/
+env/
